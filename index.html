@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>팀 집중 시간표 (등록 + 저장)</title>
+  <title>팀 집중 시간표 (안정화 완료)</title>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <style>
@@ -59,6 +59,7 @@
     let isMouseDown = false;
     const visited = new Set();
     const selectedCells = new Set();
+    const allCellRefs = {};
     const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
     const colors = {};
 
@@ -78,9 +79,9 @@
       document.getElementById("userStatus").innerHTML = `현재 사용자: <span class='registered-user'>${currentUser}</span>`;
     }
 
-    function updateCellDisplay(cell, names) {
+    function updateCellDisplay(cell, users) {
       cell.innerHTML = "";
-      names.forEach(name => {
+      users.forEach(name => {
         const span = document.createElement("span");
         span.className = "name-label";
         span.textContent = name;
@@ -90,8 +91,7 @@
       });
     }
 
-    function toggleCellLocal(cell) {
-      const key = cell.dataset.key;
+    function toggleCellLocal(cell, key) {
       if (!currentUser || visited.has(key)) return;
       visited.add(key);
 
@@ -101,28 +101,36 @@
         selectedCells.add(key);
       }
 
-      const displayNames = Array.from(selectedCells).includes(key) ? [currentUser] : [];
-      updateCellDisplay(cell, displayNames);
+      const cellUsers = allCellRefs[key] ? [...allCellRefs[key]] : [];
+      const newSet = new Set(cellUsers);
+      if (newSet.has(currentUser)) newSet.delete(currentUser);
+      else newSet.add(currentUser);
+      allCellRefs[key] = [...newSet];
+      updateCellDisplay(document.querySelector(`[data-key='${key}']`), [...newSet]);
     }
 
     function saveToFirebase() {
-      if (!currentUser) return alert("먼저 이름을 등록해주세요!");
+      if (!currentUser) return alert("이름을 등록해주세요");
       selectedCells.forEach(key => {
-        const ref = db.ref(`schedule/${key}/${currentUser}`);
-        ref.set(true);
+        const updates = {};
+        updates[`schedule/${key}/${currentUser}`] = true;
+        db.ref().update(updates);
       });
-      alert("저장되었습니다.");
+      alert("저장 완료!");
     }
 
     function clearMySchedule() {
       if (!currentUser) return alert("먼저 이름을 등록해주세요!");
+      const updates = {};
       for (let h = 0; h < 24; h++) {
         for (let d = 0; d < 7; d++) {
-          db.ref(`schedule/${d}-${h}/${currentUser}`).remove();
+          updates[`schedule/${d}-${h}/${currentUser}`] = null;
         }
       }
-      alert("내 기록이 초기화되었습니다.");
-      window.location.reload();
+      db.ref().update(updates).then(() => {
+        alert("내 기록이 삭제되었습니다.");
+        window.location.reload();
+      });
     }
 
     function createTable() {
@@ -139,19 +147,19 @@
 
           db.ref(`schedule/${key}`).on("value", snap => {
             const data = snap.val();
-            const names = data ? Object.keys(data) : [];
-            updateCellDisplay(cell, names);
+            const users = data ? Object.keys(data) : [];
+            allCellRefs[key] = users;
+            updateCellDisplay(cell, users);
           });
 
           cell.addEventListener("mousedown", () => {
-            if (!currentUser) return alert("먼저 이름을 등록해주세요!");
+            if (!currentUser) return alert("이름을 등록해주세요");
             isMouseDown = true;
             visited.clear();
-            toggleCellLocal(cell);
+            toggleCellLocal(cell, key);
           });
-
           cell.addEventListener("mouseover", () => {
-            if (isMouseDown && currentUser) toggleCellLocal(cell);
+            if (isMouseDown && currentUser) toggleCellLocal(cell, key);
           });
 
           row.appendChild(cell);
