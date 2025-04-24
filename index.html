@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>팀 집중 시간표 (안정화 완료)</title>
+  <title>팀 집중 시간표 (완성형)</title>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <style>
@@ -60,6 +60,7 @@
     const visited = new Set();
     const selectedCells = new Set();
     const allCellRefs = {};
+    const cellElements = {};
     const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
     const colors = {};
 
@@ -101,20 +102,17 @@
         selectedCells.add(key);
       }
 
-      const cellUsers = allCellRefs[key] ? [...allCellRefs[key]] : [];
-      const newSet = new Set(cellUsers);
-      if (newSet.has(currentUser)) newSet.delete(currentUser);
-      else newSet.add(currentUser);
-      allCellRefs[key] = [...newSet];
-      updateCellDisplay(document.querySelector(`[data-key='${key}']`), [...newSet]);
+      const users = new Set(allCellRefs[key] || []);
+      if (users.has(currentUser)) users.delete(currentUser);
+      else users.add(currentUser);
+      allCellRefs[key] = Array.from(users);
+      updateCellDisplay(cellElements[key], allCellRefs[key]);
     }
 
     function saveToFirebase() {
       if (!currentUser) return alert("이름을 등록해주세요");
       selectedCells.forEach(key => {
-        const updates = {};
-        updates[`schedule/${key}/${currentUser}`] = true;
-        db.ref().update(updates);
+        db.ref(`schedule/${key}/${currentUser}`).set(true);
       });
       alert("저장 완료!");
     }
@@ -144,6 +142,7 @@
           const cell = document.createElement("td");
           const key = `${d}-${h}`;
           cell.dataset.key = key;
+          cellElements[key] = cell;
 
           db.ref(`schedule/${key}`).on("value", snap => {
             const data = snap.val();
