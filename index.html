@@ -67,11 +67,8 @@
     function updateCell(key) {
       const cell = cellElements[key];
       const users = new Set(allCellRefs[key] || []);
-      if (selectedCells.has(key)) users.add(currentUser);
-      else users.delete(currentUser);
-      allCellRefs[key] = [...users];
       cell.innerHTML = '';
-      allCellRefs[key].forEach(name => {
+      users.forEach(name => {
         const label = document.createElement('span');
         label.className = 'name-label';
         label.textContent = name;
@@ -140,6 +137,7 @@
       selectedCells.forEach(key => {
         set(ref(db, `schedule/${key}/${currentUser}`), true);
       });
+      selectedCells.clear(); // ✅ 저장 후 선택 초기화
       alert("저장 완료!");
     });
 
