@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Team Focus Schedule</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+    }
+    table {
+      border-collapse: collapse;
+      margin: 0 auto;
+    }
+    td, th {
+      border: 1px solid #ccc;
+      width: 60px;
+      height: 30px;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    td.selected {
+      background-color: lightblue;
+    }
+    .controls {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📅 팀 집중 시간표</h1>
+  <div class="controls">
+    <label>이름: <input type="text" id="username" /></label>
+    <button onclick="saveSelection()">💾 저장</button>
+    <button onclick="clearSelection()">🧹 초기화</button>
+  </div>
+  <table id="schedule">
+    <thead>
+      <tr>
+        <th>시간</th>
+        <th>일</th>
+        <th>월</th>
+        <th>화</th>
+        <th>수</th>
+        <th>목</th>
+        <th>금</th>
+        <th>토</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- JavaScript로 시간행 추가 -->
+    </tbody>
+  </table>
+
+  <script>
+    const tableBody = document.querySelector("#schedule tbody");
+    const savedData = JSON.parse(localStorage.getItem("schedule-data") || "{}");
+
+    for (let hour = 0; hour < 24; hour++) {
+      const row = document.createElement("tr");
+      const timeCell = document.createElement("th");
+      timeCell.textContent = `${String(hour).padStart(2, '0')}:00`;
+      row.appendChild(timeCell);
+
+      for (let day = 0; day < 7; day++) {
+        const cell = document.createElement("td");
+        cell.dataset.time = `${day}-${hour}`;
+
+        if (savedData[cell.dataset.time]) {
+          cell.classList.add("selected");
+        }
+
+        cell.addEventListener("mousedown", () => {
+          cell.classList.toggle("selected");
+        });
+        row.appendChild(cell);
+      }
+
+      tableBody.appendChild(row);
+    }
+
+    function saveSelection() {
+      const username = document.getElementById("username").value.trim();
+      if (!username) {
+        alert("이름을 입력해주세요.");
+        return;
+      }
+
+      const selectedCells = document.querySelectorAll("td.selected");
+      const data = {};
+      selectedCells.forEach(cell => {
+        data[cell.dataset.time] = true;
+      });
+      localStorage.setItem("schedule-data", JSON.stringify(data));
+      alert("저장되었습니다! 이 브라우저에서는 유지됩니다.");
+    }
+
+    function clearSelection() {
+      document.querySelectorAll("td").forEach(cell => cell.classList.remove("selected"));
+      localStorage.removeItem("schedule-data");
+    }
+  </script>
+</body>
+</html>
