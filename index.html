@@ -89,45 +89,52 @@
     const colors = {};
     const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
     let isMouseDown = false;
-    let currentUser = "";
+    let activeUser = "";
     const tableBody = document.querySelector("#schedule tbody");
 
-    for (let hour = 0; hour < 24; hour++) {
-      const row = document.createElement("tr");
-      const timeCell = document.createElement("th");
-      timeCell.textContent = `${String(hour).padStart(2, '0')}:00`;
-      row.appendChild(timeCell);
+    document.addEventListener("DOMContentLoaded", () => {
+      generateTable();
+      document.body.addEventListener("mouseup", () => isMouseDown = false);
+    });
 
-      for (let day = 0; day < 7; day++) {
-        const cell = document.createElement("td");
-        const key = `${day}-${hour}`;
-        cell.dataset.time = key;
+    function generateTable() {
+      for (let hour = 0; hour < 24; hour++) {
+        const row = document.createElement("tr");
+        const timeCell = document.createElement("th");
+        timeCell.textContent = `${String(hour).padStart(2, '0')}:00`;
+        row.appendChild(timeCell);
 
-        db.ref(`schedule/${key}`).on('value', snapshot => {
-          const names = snapshot.val() ? Object.keys(snapshot.val()) : [];
-          updateCellDisplay(cell, names);
-        });
+        for (let day = 0; day < 7; day++) {
+          const cell = document.createElement("td");
+          const key = `${day}-${hour}`;
+          cell.dataset.time = key;
 
-        cell.addEventListener("mousedown", () => {
-          currentUser = document.getElementById("username").value.trim();
-          if (!currentUser) {
-            alert("이름을 입력해주세요!");
-            return;
-          }
-          isMouseDown = true;
-          toggleMyNameOnly(cell, currentUser);
-        });
+          db.ref(`schedule/${key}`).on('value', snapshot => {
+            const names = snapshot.val() ? Object.keys(snapshot.val()) : [];
+            updateCellDisplay(cell, names);
+          });
 
-        cell.addEventListener("mouseover", () => {
-          if (isMouseDown) toggleMyNameOnly(cell, currentUser);
-        });
+          cell.addEventListener("mousedown", (e) => handleInteraction(e, cell));
+          cell.addEventListener("mouseover", (e) => {
+            if (isMouseDown) handleInteraction(e, cell);
+          });
 
-        row.appendChild(cell);
+          row.appendChild(cell);
+        }
+        tableBody.appendChild(row);
       }
-      tableBody.appendChild(row);
     }
 
-    document.body.addEventListener("mouseup", () => isMouseDown = false);
+    function handleInteraction(e, cell) {
+      const inputName = document.getElementById("username").value.trim();
+      if (!inputName) {
+        alert("이름을 입력해주세요!");
+        return;
+      }
+      activeUser = inputName;
+      isMouseDown = true;
+      toggleMyNameOnly(cell, activeUser);
+    }
 
     function toggleMyNameOnly(cell, name) {
       const key = cell.dataset.time;
@@ -173,7 +180,7 @@
           db.ref(`schedule/${key}/${name}`).remove();
         }
       }
-      alert("내 시간표가 초기화되었습니다.");
+      alert("내 기록이 초기화되었습니다.");
     }
   </script>
 </body>
