@@ -1,178 +1,48 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>팀 집중 시간표 (완성형)</title>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>팀 실시간 시간표</title>
   <style>
-    body { font-family: sans-serif; background: #f9f9f9; padding: 20px; }
+    body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
     table { border-collapse: collapse; margin: 0 auto; }
     th, td {
       border: 1px solid #ccc; width: 80px; height: 50px;
       text-align: left; vertical-align: top; padding: 4px; cursor: pointer;
     }
-    td .name-label {
+    .name-label {
       display: inline-block; padding: 2px 4px; margin: 1px 0;
       border-radius: 4px; font-size: 12px; color: white;
     }
+    h1 { text-align: center; }
     .controls { text-align: center; margin-bottom: 20px; }
-    .controls input, .controls button { margin: 5px; }
-    .registered-user { font-weight: bold; color: #10b981; }
-    #notice { margin-top: 10px; font-size: 14px; color: #777; }
+    input, button { margin: 5px; padding: 5px 10px; }
   </style>
 </head>
 <body>
-  <h1 style="text-align:center">📅 팀 집중 시간표</h1>
+  <h1>🔥 팀 집중 시간표</h1>
+
   <div class="controls">
-    <input type="text" id="username" placeholder="이름을 입력하세요">
-    <button onclick="registerUser()">✅ 등록</button>
-    <button onclick="saveToFirebase()">💾 저장</button>
-    <button onclick="clearMySchedule()">🧹 내 기록 초기화</button>
-    <div id="userStatus"></div>
-    <div id="notice">※ 등록 후 셀을 드래그하고, <strong>저장 버튼</strong>을 눌러야 저장됩니다.</div>
+    <input type="text" id="username" placeholder="이름 입력" />
+    <button id="registerBtn">✅ 등록</button>
+    <button id="saveBtn">💾 저장</button>
+    <button id="clearBtn">🧹 초기화</button>
   </div>
-  <table>
-    <thead>
-      <tr>
-        <th>시간</th><th>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th>
-      </tr>
-    </thead>
-    <tbody id="schedule"></tbody>
-  </table>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyC2PvRwUfGo_UoGZUdWqekC1WxRvXs7Ma4",
-      authDomain: "team-focus-schedule.firebaseapp.com",
-      databaseURL: "https://team-focus-schedule-default-rtdb.firebaseio.com",
-      projectId: "team-focus-schedule",
-      storageBucket: "team-focus-schedule.appspot.com",
-      messagingSenderId: "424187939160",
-      appId: "1:424187939160:web:2c6e4e53859a7757b89818"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+  <div id="scheduleContainer"></div>
 
-    let currentUser = null;
-    let isMouseDown = false;
-    const visited = new Set();
-    const selectedCells = new Set();
-    const allCellRefs = {};
-    const cellElements = {};
-    const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
-    const colors = {};
+  <!-- 🔗 team-schedule.js 연결 -->
+  <script type="module">
+    import { createSchedule } from './team-schedule.js';
 
-    const tableBody = document.getElementById("schedule");
-
-    function getColor(name) {
-      if (!colors[name]) {
-        colors[name] = colorPalette[Object.keys(colors).length % colorPalette.length];
-      }
-      return colors[name];
-    }
-
-    function registerUser() {
-      const name = document.getElementById("username").value.trim();
-      if (!name) return alert("이름을 입력해주세요!");
-      currentUser = name;
-      document.getElementById("userStatus").innerHTML = `현재 사용자: <span class='registered-user'>${currentUser}</span>`;
-    }
-
-    function updateCellDisplay(cell, users) {
-      cell.innerHTML = "";
-      users.forEach(name => {
-        const span = document.createElement("span");
-        span.className = "name-label";
-        span.textContent = name;
-        span.style.backgroundColor = getColor(name);
-        cell.appendChild(span);
-        cell.appendChild(document.createElement("br"));
-      });
-    }
-
-    function toggleCellLocal(cell, key) {
-      if (!currentUser || visited.has(key)) return;
-      visited.add(key);
-
-      if (selectedCells.has(key)) {
-        selectedCells.delete(key);
-      } else {
-        selectedCells.add(key);
-      }
-
-      const users = new Set(allCellRefs[key] || []);
-      if (users.has(currentUser)) users.delete(currentUser);
-      else users.add(currentUser);
-      allCellRefs[key] = Array.from(users);
-      updateCellDisplay(cellElements[key], allCellRefs[key]);
-    }
-
-    function saveToFirebase() {
-      if (!currentUser) return alert("이름을 등록해주세요");
-      selectedCells.forEach(key => {
-        db.ref(`schedule/${key}/${currentUser}`).set(true);
-      });
-      alert("저장 완료!");
-    }
-
-    function clearMySchedule() {
-      if (!currentUser) return alert("먼저 이름을 등록해주세요!");
-      const updates = {};
-      for (let h = 0; h < 24; h++) {
-        for (let d = 0; d < 7; d++) {
-          updates[`schedule/${d}-${h}/${currentUser}`] = null;
-        }
-      }
-      db.ref().update(updates).then(() => {
-        alert("내 기록이 삭제되었습니다.");
-        window.location.reload();
-      });
-    }
-
-    function createTable() {
-      for (let h = 0; h < 24; h++) {
-        const row = document.createElement("tr");
-        const time = document.createElement("th");
-        time.textContent = `${String(h).padStart(2, "0")}:00`;
-        row.appendChild(time);
-
-        for (let d = 0; d < 7; d++) {
-          const cell = document.createElement("td");
-          const key = `${d}-${h}`;
-          cell.dataset.key = key;
-          cellElements[key] = cell;
-
-          db.ref(`schedule/${key}`).on("value", snap => {
-            const data = snap.val();
-            const users = data ? Object.keys(data) : [];
-            allCellRefs[key] = users;
-            updateCellDisplay(cell, users);
-          });
-
-          cell.addEventListener("mousedown", () => {
-            if (!currentUser) return alert("이름을 등록해주세요");
-            isMouseDown = true;
-            visited.clear();
-            toggleCellLocal(cell, key);
-          });
-          cell.addEventListener("mouseover", () => {
-            if (isMouseDown && currentUser) toggleCellLocal(cell, key);
-          });
-
-          row.appendChild(cell);
-        }
-        tableBody.appendChild(row);
-      }
-    }
-
-    document.body.addEventListener("mouseup", () => {
-      isMouseDown = false;
-      visited.clear();
-    });
-
-    createTable();
+    createSchedule(
+      document.getElementById('scheduleContainer'),
+      document.getElementById('username'),
+      document.getElementById('registerBtn'),
+      document.getElementById('saveBtn'),
+      document.getElementById('clearBtn')
+    );
   </script>
 </body>
 </html>
