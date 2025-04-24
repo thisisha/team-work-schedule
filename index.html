@@ -32,17 +32,132 @@
 
   <div id="scheduleContainer"></div>
 
-  <!-- 🔗 team-schedule.js 연결 -->
+  <!-- ✅ Firebase CDN + 직접 실행 코드 -->
   <script type="module">
-    import { createSchedule } from './team-schedule.js';
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js";
 
-    createSchedule(
-      document.getElementById('scheduleContainer'),
-      document.getElementById('username'),
-      document.getElementById('registerBtn'),
-      document.getElementById('saveBtn'),
-      document.getElementById('clearBtn')
-    );
+    const firebaseConfig = {
+      apiKey: "AIzaSyDj94ptbF8ZoXLRZz3vbTZY6UQAhEIOgNw",
+      authDomain: "team-work-schedule.firebaseapp.com",
+      databaseURL: "https://team-work-schedule-default-rtdb.firebaseio.com",
+      projectId: "team-work-schedule",
+      storageBucket: "team-work-schedule.firebasestorage.app",
+      messagingSenderId: "888817683956",
+      appId: "1:888817683956:web:3468cc140b5bfdcb4f7da1"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let currentUser = null;
+    const selectedCells = new Set();
+    const cellElements = {};
+    const allCellRefs = {};
+    const colors = {};
+    const palette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+
+    const getColor = name => {
+      if (!colors[name]) {
+        colors[name] = palette[Object.keys(colors).length % palette.length];
+      }
+      return colors[name];
+    };
+
+    function updateCell(key) {
+      const cell = cellElements[key];
+      const users = new Set(allCellRefs[key] || []);
+      if (selectedCells.has(key)) users.add(currentUser);
+      else users.delete(currentUser);
+      allCellRefs[key] = [...users];
+      cell.innerHTML = '';
+      allCellRefs[key].forEach(name => {
+        const label = document.createElement('span');
+        label.className = 'name-label';
+        label.textContent = name;
+        label.style.backgroundColor = getColor(name);
+        cell.appendChild(label);
+        cell.appendChild(document.createElement('br'));
+      });
+    }
+
+    function createTable() {
+      const container = document.getElementById("scheduleContainer");
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const tbody = document.createElement("tbody");
+
+      const header = document.createElement("tr");
+      header.innerHTML = "<th>시간</th><th>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th>";
+      thead.appendChild(header);
+
+      for (let h = 0; h < 24; h++) {
+        const row = document.createElement("tr");
+        const timeCell = document.createElement("th");
+        timeCell.textContent = `${String(h).padStart(2, '0')}:00`;
+        row.appendChild(timeCell);
+
+        for (let d = 0; d < 7; d++) {
+          const key = `${d}-${h}`;
+          const cell = document.createElement("td");
+          cell.dataset.key = key;
+          cellElements[key] = cell;
+
+          onValue(ref(db, `schedule/${key}`), snap => {
+            const data = snap.val();
+            const names = data ? Object.keys(data) : [];
+            allCellRefs[key] = names;
+            updateCell(key);
+          });
+
+          cell.addEventListener("mousedown", () => {
+            if (!currentUser) return alert("이름 먼저 입력해주세요");
+            if (selectedCells.has(key)) selectedCells.delete(key);
+            else selectedCells.add(key);
+            updateCell(key);
+          });
+
+          row.appendChild(cell);
+        }
+
+        tbody.appendChild(row);
+      }
+
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      container.appendChild(table);
+    }
+
+    document.getElementById("registerBtn").addEventListener("click", () => {
+      const name = document.getElementById("username").value.trim();
+      if (!name) return alert("이름을 입력해주세요");
+      currentUser = name;
+      alert(`${name}님 반가워요!`);
+    });
+
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      if (!currentUser) return alert("이름 등록 먼저 해주세요");
+      selectedCells.forEach(key => {
+        set(ref(db, `schedule/${key}/${currentUser}`), true);
+      });
+      alert("저장 완료!");
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      if (!currentUser) return alert("이름 등록 먼저 해주세요");
+      const updates = {};
+      for (let h = 0; h < 24; h++) {
+        for (let d = 0; d < 7; d++) {
+          updates[`schedule/${d}-${h}/${currentUser}`] = null;
+        }
+      }
+      update(ref(db), updates).then(() => {
+        alert("초기화 완료");
+        location.reload();
+      });
+    });
+
+    createTable();
   </script>
 </body>
 </html>
