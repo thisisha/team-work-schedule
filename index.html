@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>팀 집중 시간표</title>
+  <title>팀 집중 시간표 (등록 + 저장)</title>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <style>
-    body { font-family: sans-serif; background: #f5f5f5; padding: 20px; }
+    body { font-family: sans-serif; background: #f9f9f9; padding: 20px; }
     table { border-collapse: collapse; margin: 0 auto; }
     th, td {
       border: 1px solid #ccc; width: 80px; height: 50px;
@@ -18,8 +18,9 @@
       border-radius: 4px; font-size: 12px; color: white;
     }
     .controls { text-align: center; margin-bottom: 20px; }
-    .controls input, .controls button { margin: 4px; }
-    #userStatus { margin-top: 10px; color: #333; font-weight: bold; }
+    .controls input, .controls button { margin: 5px; }
+    .registered-user { font-weight: bold; color: #10b981; }
+    #notice { margin-top: 10px; font-size: 14px; color: #777; }
   </style>
 </head>
 <body>
@@ -27,8 +28,10 @@
   <div class="controls">
     <input type="text" id="username" placeholder="이름을 입력하세요">
     <button onclick="registerUser()">✅ 등록</button>
+    <button onclick="saveToFirebase()">💾 저장</button>
     <button onclick="clearMySchedule()">🧹 내 기록 초기화</button>
     <div id="userStatus"></div>
+    <div id="notice">※ 등록 후 셀을 드래그하고, <strong>저장 버튼</strong>을 눌러야 저장됩니다.</div>
   </div>
   <table>
     <thead>
@@ -55,6 +58,7 @@
     let currentUser = null;
     let isMouseDown = false;
     const visited = new Set();
+    const selectedCells = new Set();
     const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
     const colors = {};
 
@@ -71,7 +75,7 @@
       const name = document.getElementById("username").value.trim();
       if (!name) return alert("이름을 입력해주세요!");
       currentUser = name;
-      document.getElementById("userStatus").textContent = `현재 사용자: ${currentUser}`;
+      document.getElementById("userStatus").innerHTML = `현재 사용자: <span class='registered-user'>${currentUser}</span>`;
     }
 
     function updateCellDisplay(cell, names) {
@@ -86,20 +90,28 @@
       });
     }
 
-    function toggleUser(cell) {
-      if (!currentUser) return alert("먼저 이름을 등록해주세요!");
+    function toggleCellLocal(cell) {
       const key = cell.dataset.key;
-      if (visited.has(key)) return;
+      if (!currentUser || visited.has(key)) return;
       visited.add(key);
-      const ref = db.ref(`schedule/${key}/${currentUser}`);
-      ref.once("value").then(snap => {
-        if (snap.exists()) ref.remove();
-        else ref.set(true);
-        // DOM 즉시 반영
-        const users = Array.from(cell.querySelectorAll(".name-label")).map(span => span.textContent);
-        const updated = snap.exists() ? users.filter(n => n !== currentUser) : [...users, currentUser];
-        updateCellDisplay(cell, updated);
+
+      if (selectedCells.has(key)) {
+        selectedCells.delete(key);
+      } else {
+        selectedCells.add(key);
+      }
+
+      const displayNames = Array.from(selectedCells).includes(key) ? [currentUser] : [];
+      updateCellDisplay(cell, displayNames);
+    }
+
+    function saveToFirebase() {
+      if (!currentUser) return alert("먼저 이름을 등록해주세요!");
+      selectedCells.forEach(key => {
+        const ref = db.ref(`schedule/${key}/${currentUser}`);
+        ref.set(true);
       });
+      alert("저장되었습니다.");
     }
 
     function clearMySchedule() {
@@ -110,6 +122,7 @@
         }
       }
       alert("내 기록이 초기화되었습니다.");
+      window.location.reload();
     }
 
     function createTable() {
@@ -118,6 +131,7 @@
         const time = document.createElement("th");
         time.textContent = `${String(h).padStart(2, "0")}:00`;
         row.appendChild(time);
+
         for (let d = 0; d < 7; d++) {
           const cell = document.createElement("td");
           const key = `${d}-${h}`;
@@ -130,13 +144,16 @@
           });
 
           cell.addEventListener("mousedown", () => {
+            if (!currentUser) return alert("먼저 이름을 등록해주세요!");
             isMouseDown = true;
             visited.clear();
-            toggleUser(cell);
+            toggleCellLocal(cell);
           });
+
           cell.addEventListener("mouseover", () => {
-            if (isMouseDown) toggleUser(cell);
+            if (isMouseDown && currentUser) toggleCellLocal(cell);
           });
+
           row.appendChild(cell);
         }
         tableBody.appendChild(row);
