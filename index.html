@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Team Focus Schedule</title>
+  <title>팀 집중 시간표</title>
   <style>
     body {
       font-family: sans-serif;
@@ -19,14 +19,22 @@
     }
     td, th {
       border: 1px solid #ccc;
-      width: 60px;
-      height: 30px;
-      text-align: center;
+      width: 80px;
+      height: 50px;
+      vertical-align: top;
+      text-align: left;
       cursor: pointer;
       user-select: none;
+      padding: 4px;
+      position: relative;
     }
-    td.selected {
-      background-color: lightblue;
+    td .name-label {
+      display: inline-block;
+      padding: 2px 4px;
+      margin: 1px 0;
+      border-radius: 4px;
+      font-size: 12px;
+      color: white;
     }
     .controls {
       text-align: center;
@@ -55,13 +63,18 @@
       </tr>
     </thead>
     <tbody>
-      <!-- JavaScript로 시간행 추가 -->
+      <!-- JavaScript로 행 추가 -->
     </tbody>
   </table>
 
   <script>
+    const colors = {};
+    const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+    let isMouseDown = false;
+    let currentUser = "";
+
     const tableBody = document.querySelector("#schedule tbody");
-    const savedData = JSON.parse(localStorage.getItem("schedule-data") || "{}");
+    let savedData = JSON.parse(localStorage.getItem("schedule-data") || "{}");
 
     for (let hour = 0; hour < 24; hour++) {
       const row = document.createElement("tr");
@@ -71,40 +84,94 @@
 
       for (let day = 0; day < 7; day++) {
         const cell = document.createElement("td");
-        cell.dataset.time = `${day}-${hour}`;
+        const key = `${day}-${hour}`;
+        cell.dataset.time = key;
 
-        if (savedData[cell.dataset.time]) {
-          cell.classList.add("selected");
+        if (savedData[key]) {
+          savedData[key].forEach(name => addNameToCell(cell, name));
         }
 
-        cell.addEventListener("mousedown", () => {
-          cell.classList.toggle("selected");
+        cell.addEventListener("mousedown", (e) => {
+          if (!currentUser) {
+            alert("이름을 먼저 입력하세요!");
+            return;
+          }
+          isMouseDown = true;
+          toggleName(cell, currentUser);
         });
+
+        cell.addEventListener("mouseover", (e) => {
+          if (isMouseDown) {
+            toggleName(cell, currentUser);
+          }
+        });
+
         row.appendChild(cell);
       }
-
       tableBody.appendChild(row);
     }
 
+    document.body.addEventListener("mouseup", () => isMouseDown = false);
+
+    function toggleName(cell, name) {
+      const key = cell.dataset.time;
+      if (!savedData[key]) savedData[key] = [];
+
+      const index = savedData[key].indexOf(name);
+      if (index === -1) {
+        savedData[key].push(name);
+      } else {
+        savedData[key].splice(index, 1);
+      }
+
+      updateCellDisplay(cell, savedData[key]);
+    }
+
+    function updateCellDisplay(cell, names) {
+      cell.innerHTML = "";
+      names.forEach(name => {
+        const span = document.createElement("span");
+        span.textContent = name;
+        span.className = "name-label";
+        span.style.backgroundColor = getColor(name);
+        cell.appendChild(span);
+        cell.appendChild(document.createElement("br"));
+      });
+    }
+
+    function getColor(name) {
+      if (!colors[name]) {
+        const colorIndex = Object.keys(colors).length % colorPalette.length;
+        colors[name] = colorPalette[colorIndex];
+      }
+      return colors[name];
+    }
+
+    function addNameToCell(cell, name) {
+      if (!savedData[cell.dataset.time]) savedData[cell.dataset.time] = [];
+      if (!savedData[cell.dataset.time].includes(name)) {
+        savedData[cell.dataset.time].push(name);
+      }
+      updateCellDisplay(cell, savedData[cell.dataset.time]);
+    }
+
     function saveSelection() {
-      const username = document.getElementById("username").value.trim();
-      if (!username) {
+      const name = document.getElementById("username").value.trim();
+      if (!name) {
         alert("이름을 입력해주세요.");
         return;
       }
-
-      const selectedCells = document.querySelectorAll("td.selected");
-      const data = {};
-      selectedCells.forEach(cell => {
-        data[cell.dataset.time] = true;
-      });
-      localStorage.setItem("schedule-data", JSON.stringify(data));
+      currentUser = name;
+      localStorage.setItem("schedule-data", JSON.stringify(savedData));
       alert("저장되었습니다! 이 브라우저에서는 유지됩니다.");
     }
 
     function clearSelection() {
-      document.querySelectorAll("td").forEach(cell => cell.classList.remove("selected"));
+      savedData = {};
       localStorage.removeItem("schedule-data");
+      document.querySelectorAll("td").forEach(cell => {
+        cell.innerHTML = "";
+      });
     }
   </script>
 </body>
