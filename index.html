@@ -45,13 +45,19 @@
     .controls input, .controls button {
       margin: 0 4px;
     }
+    .registered-user {
+      font-weight: bold;
+      color: #10b981;
+    }
   </style>
 </head>
 <body>
   <h1>📅 팀 집중 시간표 (실시간 공유)</h1>
   <div class="controls">
     <label>이름: <input type="text" id="username" placeholder="예: 건하" /></label>
+    <button onclick="registerUser()">✅ 등록</button>
     <button onclick="clearMySchedule()">🧹 내 기록 초기화</button>
+    <div id="userStatus"></div>
   </div>
   <table id="schedule">
     <thead>
@@ -86,9 +92,14 @@
     const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
     const colors = {};
     let isMouseDown = false;
+    let currentUser = null;
+    let visitedCells = new Set();
 
-    function getUsername() {
-      return document.getElementById("username").value.trim();
+    function registerUser() {
+      const name = document.getElementById("username").value.trim();
+      if (!name) return alert("이름을 입력해주세요!");
+      currentUser = name;
+      document.getElementById("userStatus").innerHTML = `현재 사용자: <span class='registered-user'>${currentUser}</span>`;
     }
 
     function getColor(name) {
@@ -111,9 +122,11 @@
       });
     }
 
-    function toggleUserInCell(cell, username) {
+    function toggleUserInCell(cell) {
       const key = cell.dataset.time;
-      const ref = db.ref(`schedule/${key}/${username}`);
+      if (!key || visitedCells.has(key)) return;
+      visitedCells.add(key);
+      const ref = db.ref(`schedule/${key}/${currentUser}`);
       ref.once('value').then(snapshot => {
         if (snapshot.exists()) {
           ref.remove();
@@ -124,11 +137,10 @@
     }
 
     function clearMySchedule() {
-      const username = getUsername();
-      if (!username) return alert("이름을 입력해주세요!");
+      if (!currentUser) return alert("먼저 이름을 등록해주세요!");
       for (let h = 0; h < 24; h++) {
         for (let d = 0; d < 7; d++) {
-          db.ref(`schedule/${d}-${h}/${username}`).remove();
+          db.ref(`schedule/${d}-${h}/${currentUser}`).remove();
         }
       }
       alert("내 기록이 초기화되었습니다.");
@@ -153,17 +165,15 @@
           });
 
           cell.addEventListener("mousedown", () => {
-            const username = getUsername();
-            if (!username) return alert("이름을 입력해주세요!");
+            if (!currentUser) return alert("먼저 이름을 등록해주세요!");
             isMouseDown = true;
-            toggleUserInCell(cell, username);
+            visitedCells.clear();
+            toggleUserInCell(cell);
           });
 
           cell.addEventListener("mouseover", () => {
-            if (!isMouseDown) return;
-            const username = getUsername();
-            if (!username) return;
-            toggleUserInCell(cell, username);
+            if (!isMouseDown || !currentUser) return;
+            toggleUserInCell(cell);
           });
 
           row.appendChild(cell);
@@ -172,7 +182,11 @@
       }
     }
 
-    document.body.addEventListener("mouseup", () => isMouseDown = false);
+    document.body.addEventListener("mouseup", () => {
+      isMouseDown = false;
+      visitedCells.clear();
+    });
+
     createScheduleGrid();
   </script>
 </body>
