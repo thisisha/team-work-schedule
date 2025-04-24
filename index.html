@@ -42,12 +42,16 @@
       text-align: center;
       margin-bottom: 20px;
     }
+    .controls input, .controls button {
+      margin: 0 4px;
+    }
   </style>
 </head>
 <body>
   <h1>📅 팀 집중 시간표 (실시간 공유)</h1>
   <div class="controls">
     <label>이름: <input type="text" id="username" /></label>
+    <button onclick="clearMySchedule()">🧹 내 기록 초기화</button>
   </div>
   <table id="schedule">
     <thead>
@@ -68,7 +72,7 @@
   </table>
 
   <script>
-    // Firebase 설정 (테스트 프로젝트)
+    // Firebase 설정
     const firebaseConfig = {
       apiKey: "AIzaSyC2PvRwUfGo_UoGZUdWqekC1WxRvXs7Ma4",
       authDomain: "team-focus-schedule.firebaseapp.com",
@@ -86,7 +90,6 @@
     const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
     let isMouseDown = false;
     let currentUser = "";
-
     const tableBody = document.querySelector("#schedule tbody");
 
     for (let hour = 0; hour < 24; hour++) {
@@ -100,7 +103,6 @@
         const key = `${day}-${hour}`;
         cell.dataset.time = key;
 
-        // 리스너 등록
         db.ref(`schedule/${key}`).on('value', snapshot => {
           const names = snapshot.val() ? Object.keys(snapshot.val()) : [];
           updateCellDisplay(cell, names);
@@ -130,12 +132,11 @@
     function toggleMyNameOnly(cell, name) {
       const key = cell.dataset.time;
       const ref = db.ref(`schedule/${key}/${name}`);
-
       ref.once('value', snapshot => {
         if (snapshot.exists()) {
-          ref.remove(); // 나만 제거
+          ref.remove();
         } else {
-          ref.set(true); // 나만 추가
+          ref.set(true);
         }
       });
     }
@@ -158,6 +159,21 @@
         colors[name] = colorPalette[index];
       }
       return colors[name];
+    }
+
+    function clearMySchedule() {
+      const name = document.getElementById("username").value.trim();
+      if (!name) {
+        alert("이름을 입력해주세요!");
+        return;
+      }
+      for (let hour = 0; hour < 24; hour++) {
+        for (let day = 0; day < 7; day++) {
+          const key = `${day}-${hour}`;
+          db.ref(`schedule/${key}/${name}`).remove();
+        }
+      }
+      alert("내 시간표가 초기화되었습니다.");
     }
   </script>
 </body>
