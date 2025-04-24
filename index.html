@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>팀 집중 시간표</title>
+  <title>팀 집중 시간표 (실시간 공유)</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <style>
     body {
       font-family: sans-serif;
@@ -43,11 +45,9 @@
   </style>
 </head>
 <body>
-  <h1>📅 팀 집중 시간표</h1>
+  <h1>📅 팀 집중 시간표 (실시간 공유)</h1>
   <div class="controls">
     <label>이름: <input type="text" id="username" /></label>
-    <button onclick="saveSelection()">💾 저장</button>
-    <button onclick="clearSelection()">🧹 초기화</button>
   </div>
   <table id="schedule">
     <thead>
@@ -68,13 +68,26 @@
   </table>
 
   <script>
+    // Firebase 설정 (테스트 프로젝트)
+    const firebaseConfig = {
+      apiKey: "AIzaSyC2PvRwUfGo_UoGZUdWqekC1WxRvXs7Ma4",
+      authDomain: "team-focus-schedule.firebaseapp.com",
+      databaseURL: "https://team-focus-schedule-default-rtdb.firebaseio.com",
+      projectId: "team-focus-schedule",
+      storageBucket: "team-focus-schedule.appspot.com",
+      messagingSenderId: "424187939160",
+      appId: "1:424187939160:web:2c6e4e53859a7757b89818"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     const colors = {};
     const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
     let isMouseDown = false;
     let currentUser = "";
 
     const tableBody = document.querySelector("#schedule tbody");
-    let savedData = JSON.parse(localStorage.getItem("schedule-data") || "{}");
 
     for (let hour = 0; hour < 24; hour++) {
       const row = document.createElement("tr");
@@ -87,23 +100,24 @@
         const key = `${day}-${hour}`;
         cell.dataset.time = key;
 
-        if (savedData[key]) {
-          savedData[key].forEach(name => addNameToCell(cell, name));
-        }
+        // 리스너 등록
+        db.ref(`schedule/${key}`).on('value', snapshot => {
+          const names = snapshot.val() ? Object.keys(snapshot.val()) : [];
+          updateCellDisplay(cell, names);
+        });
 
-        cell.addEventListener("mousedown", (e) => {
+        cell.addEventListener("mousedown", () => {
+          currentUser = document.getElementById("username").value.trim();
           if (!currentUser) {
-            alert("이름을 먼저 입력하세요!");
+            alert("이름을 입력해주세요!");
             return;
           }
           isMouseDown = true;
-          toggleName(cell, currentUser);
+          toggleMyNameOnly(cell, currentUser);
         });
 
-        cell.addEventListener("mouseover", (e) => {
-          if (isMouseDown) {
-            toggleName(cell, currentUser);
-          }
+        cell.addEventListener("mouseover", () => {
+          if (isMouseDown) toggleMyNameOnly(cell, currentUser);
         });
 
         row.appendChild(cell);
@@ -113,18 +127,17 @@
 
     document.body.addEventListener("mouseup", () => isMouseDown = false);
 
-    function toggleName(cell, name) {
+    function toggleMyNameOnly(cell, name) {
       const key = cell.dataset.time;
-      if (!savedData[key]) savedData[key] = [];
+      const ref = db.ref(`schedule/${key}/${name}`);
 
-      const index = savedData[key].indexOf(name);
-      if (index === -1) {
-        savedData[key].push(name);
-      } else {
-        savedData[key].splice(index, 1);
-      }
-
-      updateCellDisplay(cell, savedData[key]);
+      ref.once('value', snapshot => {
+        if (snapshot.exists()) {
+          ref.remove(); // 나만 제거
+        } else {
+          ref.set(true); // 나만 추가
+        }
+      });
     }
 
     function updateCellDisplay(cell, names) {
@@ -141,37 +154,10 @@
 
     function getColor(name) {
       if (!colors[name]) {
-        const colorIndex = Object.keys(colors).length % colorPalette.length;
-        colors[name] = colorPalette[colorIndex];
+        const index = Object.keys(colors).length % colorPalette.length;
+        colors[name] = colorPalette[index];
       }
       return colors[name];
-    }
-
-    function addNameToCell(cell, name) {
-      if (!savedData[cell.dataset.time]) savedData[cell.dataset.time] = [];
-      if (!savedData[cell.dataset.time].includes(name)) {
-        savedData[cell.dataset.time].push(name);
-      }
-      updateCellDisplay(cell, savedData[cell.dataset.time]);
-    }
-
-    function saveSelection() {
-      const name = document.getElementById("username").value.trim();
-      if (!name) {
-        alert("이름을 입력해주세요.");
-        return;
-      }
-      currentUser = name;
-      localStorage.setItem("schedule-data", JSON.stringify(savedData));
-      alert("저장되었습니다! 이 브라우저에서는 유지됩니다.");
-    }
-
-    function clearSelection() {
-      savedData = {};
-      localStorage.removeItem("schedule-data");
-      document.querySelectorAll("td").forEach(cell => {
-        cell.innerHTML = "";
-      });
     }
   </script>
 </body>
