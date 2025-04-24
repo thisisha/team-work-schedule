@@ -50,7 +50,7 @@
 <body>
   <h1>📅 팀 집중 시간표 (실시간 공유)</h1>
   <div class="controls">
-    <label>이름: <input type="text" id="username" /></label>
+    <label>이름: <input type="text" id="username" placeholder="예: 건하" /></label>
     <button onclick="clearMySchedule()">🧹 내 기록 초기화</button>
   </div>
   <table id="schedule">
@@ -66,13 +66,10 @@
         <th>토</th>
       </tr>
     </thead>
-    <tbody>
-      <!-- JavaScript로 행 추가 -->
-    </tbody>
+    <tbody></tbody>
   </table>
 
   <script>
-    // Firebase 설정
     const firebaseConfig = {
       apiKey: "AIzaSyC2PvRwUfGo_UoGZUdWqekC1WxRvXs7Ma4",
       authDomain: "team-focus-schedule.firebaseapp.com",
@@ -82,82 +79,16 @@
       messagingSenderId: "424187939160",
       appId: "1:424187939160:web:2c6e4e53859a7757b89818"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const colors = {};
-    const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
-    let isMouseDown = false;
-    let activeUser = "";
     const tableBody = document.querySelector("#schedule tbody");
+    const colorPalette = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+    const colors = {};
+    let isMouseDown = false;
 
-    document.addEventListener("DOMContentLoaded", () => {
-      generateTable();
-      document.body.addEventListener("mouseup", () => isMouseDown = false);
-    });
-
-    function generateTable() {
-      for (let hour = 0; hour < 24; hour++) {
-        const row = document.createElement("tr");
-        const timeCell = document.createElement("th");
-        timeCell.textContent = `${String(hour).padStart(2, '0')}:00`;
-        row.appendChild(timeCell);
-
-        for (let day = 0; day < 7; day++) {
-          const cell = document.createElement("td");
-          const key = `${day}-${hour}`;
-          cell.dataset.time = key;
-
-          db.ref(`schedule/${key}`).on('value', snapshot => {
-            const names = snapshot.val() ? Object.keys(snapshot.val()) : [];
-            updateCellDisplay(cell, names);
-          });
-
-          cell.addEventListener("mousedown", (e) => handleInteraction(e, cell));
-          cell.addEventListener("mouseover", (e) => {
-            if (isMouseDown) handleInteraction(e, cell);
-          });
-
-          row.appendChild(cell);
-        }
-        tableBody.appendChild(row);
-      }
-    }
-
-    function handleInteraction(e, cell) {
-      const inputName = document.getElementById("username").value.trim();
-      if (!inputName) {
-        alert("이름을 입력해주세요!");
-        return;
-      }
-      activeUser = inputName;
-      isMouseDown = true;
-      toggleMyNameOnly(cell, activeUser);
-    }
-
-    function toggleMyNameOnly(cell, name) {
-      const key = cell.dataset.time;
-      const ref = db.ref(`schedule/${key}/${name}`);
-      ref.once('value', snapshot => {
-        if (snapshot.exists()) {
-          ref.remove();
-        } else {
-          ref.set(true);
-        }
-      });
-    }
-
-    function updateCellDisplay(cell, names) {
-      cell.innerHTML = "";
-      names.forEach(name => {
-        const span = document.createElement("span");
-        span.textContent = name;
-        span.className = "name-label";
-        span.style.backgroundColor = getColor(name);
-        cell.appendChild(span);
-        cell.appendChild(document.createElement("br"));
-      });
+    function getUsername() {
+      return document.getElementById("username").value.trim();
     }
 
     function getColor(name) {
@@ -168,20 +99,81 @@
       return colors[name];
     }
 
+    function updateCellDisplay(cell, names) {
+      cell.innerHTML = "";
+      names.forEach(name => {
+        const label = document.createElement("span");
+        label.className = "name-label";
+        label.textContent = name;
+        label.style.backgroundColor = getColor(name);
+        cell.appendChild(label);
+        cell.appendChild(document.createElement("br"));
+      });
+    }
+
+    function toggleUserInCell(cell, username) {
+      const key = cell.dataset.time;
+      const ref = db.ref(`schedule/${key}/${username}`);
+      ref.once('value').then(snapshot => {
+        if (snapshot.exists()) {
+          ref.remove();
+        } else {
+          ref.set(true);
+        }
+      });
+    }
+
     function clearMySchedule() {
-      const name = document.getElementById("username").value.trim();
-      if (!name) {
-        alert("이름을 입력해주세요!");
-        return;
-      }
-      for (let hour = 0; hour < 24; hour++) {
-        for (let day = 0; day < 7; day++) {
-          const key = `${day}-${hour}`;
-          db.ref(`schedule/${key}/${name}`).remove();
+      const username = getUsername();
+      if (!username) return alert("이름을 입력해주세요!");
+      for (let h = 0; h < 24; h++) {
+        for (let d = 0; d < 7; d++) {
+          db.ref(`schedule/${d}-${h}/${username}`).remove();
         }
       }
       alert("내 기록이 초기화되었습니다.");
     }
+
+    function createScheduleGrid() {
+      for (let hour = 0; hour < 24; hour++) {
+        const row = document.createElement("tr");
+        const hourCell = document.createElement("th");
+        hourCell.textContent = `${String(hour).padStart(2, '0')}:00`;
+        row.appendChild(hourCell);
+
+        for (let day = 0; day < 7; day++) {
+          const cell = document.createElement("td");
+          const key = `${day}-${hour}`;
+          cell.dataset.time = key;
+
+          db.ref(`schedule/${key}`).on("value", snap => {
+            const data = snap.val();
+            const names = data ? Object.keys(data) : [];
+            updateCellDisplay(cell, names);
+          });
+
+          cell.addEventListener("mousedown", () => {
+            const username = getUsername();
+            if (!username) return alert("이름을 입력해주세요!");
+            isMouseDown = true;
+            toggleUserInCell(cell, username);
+          });
+
+          cell.addEventListener("mouseover", () => {
+            if (!isMouseDown) return;
+            const username = getUsername();
+            if (!username) return;
+            toggleUserInCell(cell, username);
+          });
+
+          row.appendChild(cell);
+        }
+        tableBody.appendChild(row);
+      }
+    }
+
+    document.body.addEventListener("mouseup", () => isMouseDown = false);
+    createScheduleGrid();
   </script>
 </body>
 </html>
