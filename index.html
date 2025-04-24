@@ -65,18 +65,24 @@
     };
 
     function updateCell(key) {
-      const cell = cellElements[key];
-      const users = new Set(allCellRefs[key] || []);
-      cell.innerHTML = '';
-      users.forEach(name => {
-        const label = document.createElement('span');
-        label.className = 'name-label';
-        label.textContent = name;
-        label.style.backgroundColor = getColor(name);
-        cell.appendChild(label);
-        cell.appendChild(document.createElement('br'));
-      });
-    }
+  const cell = cellElements[key];
+  const users = new Set(allCellRefs[key] || []);
+
+  // ✅ 저장 전, 내가 클릭한 셀은 내 이름 표시
+  if (selectedCells.has(key) && currentUser) {
+    users.add(currentUser);
+  }
+
+  cell.innerHTML = '';
+  users.forEach(name => {
+    const label = document.createElement('span');
+    label.className = 'name-label';
+    label.textContent = name;
+    label.style.backgroundColor = getColor(name);
+    cell.appendChild(label);
+    cell.appendChild(document.createElement('br'));
+  });
+}
 
     function createTable() {
       const container = document.getElementById("scheduleContainer");
